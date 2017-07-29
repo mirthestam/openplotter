@@ -17,6 +17,7 @@
 import os
 import time
 import urllib2
+import schedule  # This needs to be installed i.e. 'pip install schedule'
 from datetime import datetime, timedelta
 
 from classes.conf import Conf
@@ -233,26 +234,27 @@ def clean_folder():
 
 # download settings
 conf = Conf()
-run_interval = conf.get('GRIB', 'run_interval')
+run_interval = int(conf.get('GRIB', 'run_interval'))
 run_at_startup = conf.get('GRIB', 'run_at_startup')
 clean = conf.get('GRIB', 'clean')
 path = conf.get('GRIB', 'path')
 
-# calculate the sleep interval
-# TODO: use a time diff, or cron job for this
-sleep_interval = 0
-if run_interval == 0:
-    sleep_interval = 60 * 60
-elif run_interval == 1:
-    sleep_interval = 60 * 60 * 24
-else:
-    sleep_interval = 60 * 60  # fallback to hourly
+if run_interval < 1:
+    raise ValueError("Run_interval should at least be 1 minute.")
+
+if not path:
+    raise ValueError("Path property is mandatory.")
+
+if not os.path.exists(path):
+    raise EnvironmentError("Path does not exist")
 
 # Initially run
 if run_at_startup == '1':
     run()
 
+# Schedule the task
+schedule.every(run_interval).minute.do(run)
+
 while True:
-    print 'waiting for next queue'
-    time.sleep(sleep_interval)
-    run()
+    schedule.run_pending()
+    time.sleep(60)  # sleeping for a minute to save resources

@@ -30,132 +30,29 @@ def run():
 
 
 def download_grib():
+    utc_now = datetime.utcnow()
+    now = datetime.now()
 
-    def get_filename(number):
-        return 'gfs.t06z.pgrb2.0p25.f%(n)03d' % {
-                    "n": number
-                }
-
-    def download_parts():
-        # TODO: generic error handling, clean up if something went wrong (i.e. delete downloaded fXXX files)
-        # TODO: File sizes are always small. could load to memory to prevent SD card IO
-        utcnow = datetime.utcnow()
-
-        # data should be available each 6 hours. However, it it not always present after 6 hours.
-        # TODO: therefore at the moment i go back 12. However, i should try, and then adjust with 6 hours.
-        if utcnow.hour > 18:
-            folder_date = utcnow
-            hour = 12
-
-        elif utcnow.hour > 12:
-            folder_date = utcnow
-            hour = 6
-
-        elif utcnow.hour > 6:
-            folder_date = utcnow
-            hour = 0
-
-        else:
-            # need latest fetch from previous day
-            folder_date = utcnow - timedelta(days=1)
-            hour = 18
-
-        server_dir = '%(y)04d%(m)02d%(d)02d%(h)02d' % {
-            "y": folder_date.year,
-            "m": folder_date.month,
-            "d": folder_date.day,
-            "h": hour
-        }
-
-        for num in range(0, file_count):
-            source_file = get_filename(num)
-
-            # GUST: Wind Gust
-            # TMP: Temperature
-            # RH: Relative Humidity
-            # APCP : Precipation
-            # CAPE = CAPE
-            # PRMSL = Pressure (MSL)
-            # TMIN: Minimum temperature
-            # TMAX: Maximum temperature
-            # VRGD UGRD: wind components
-            # TCDC: Total cloud cover
-
-            # TODO: Use settings for available fieds
-
-            url = 'http://www.nomads.ncep.noaa.gov' + \
-                  '/cgi-bin/filter_gfs_0p25.pl' + \
-                  '?file=' + source_file + \
-                  '&lev_10_m_above_ground=on' + \
-                  '&lev_2_m_above_ground=on' + \
-                  '&lev_mean_sea_level=on' + \
-                  '&lev_entire_atmosphere=on' + \
-                  '&lev_surface=on' + \
-                  '&var_GUST=on' + \
-                  '&var_APCP=on' + \
-                  '&var_RH=on' + \
-                  '&var_TMP=on' + \
-                  '&var_CAPE=on' + \
-                  '&var_PRMSL=on' + \
-                  '&var_TMIN=on' + \
-                  '&var_TMAX=on' + \
-                  '&var_VGRD=on' + \
-                  '&var_UGRD=on' + \
-                  '&var_TCDC=on' + \
-                  '&subregion=&leftlon=' + str(lon_min) + '&rightlon=' + str(lon_max) + '&toplat=' + \
-                  str(lat_min) + '&bottomlat=' + str(lat_max) + \
-                  '&dir=%2Fgfs.' + server_dir
-
-            print 'Downloading %(i)d / %(t)d %(f)s' % {
-                'i': num,
-                't': file_count,
-                'f': source_file
-            }
-
-            response = urllib2.urlopen(url)
-
-            # Download and write the file to disk
-            target_filename = os.path.join(path, source_file)
-            with open(target_filename, "wb") as local_file:
-                local_file.write(response.read())
-
-    def concat_parts():
-        utc_now = datetime.utcnow()
-
-        destination_file = '%(y)04d%(mon)02d%(d)02d%(h)02d%(min)02d%(s)02d.grb' % {
-            'y': utc_now.year,
-            'mon': utc_now.month,
-            'd': utc_now.day,
-            'h': utc_now.hour,
-            'min': utc_now.minute,
-            's': utc_now.second
-        }
-
-        destination_file = os.path.join(path, destination_file)
-
-        print 'Writing data to \'' + destination_file + '\''
-
-        fout = file(destination_file, 'wb')
-        for n in range(0, file_count):
-            filename = get_filename(n)
-            filename = os.path.join(path, filename)
-            fin = file(filename, 'rb')
-            fout.write(fin.read())
-            fin.close()
-            os.remove(filename)
-        fout.close()
+    # open configuration settings
+    download_gust = conf.get('GRIB', 'download_gust')
+    download_tmp = conf.get('GRIB', 'download_tmp')
+    download_humidity = conf.get('GRIB', 'download_humidity')
+    download_precipitation = conf.get('GRIB', 'download_precipitation')
+    download_cape = conf.get('GRIB', 'download_cape')
+    download_pressure = conf.get('GRIB', 'download_pressure')
+    download_min_max_temp = conf.get('GRIB', 'download_min_max_temp')
+    download_wind = conf.get('GRIB', 'download_wind')
+    download_cloud_cover = conf.get('GRIB', 'download_cloud_cover')
 
     lon_min = float(conf.get('GRIB', 'lon_min'))
     lon_max = float(conf.get('GRIB', 'lon_max'))
     lat_min = float(conf.get('GRIB', 'lat_min'))
     lat_max = float(conf.get('GRIB', 'lat_max'))
-    days = int(conf.get('GRIB', 'NOAA_days'))
-    file_count = days * 12
 
-    # How to calculate the latest run?
-    # GFS refreshes each 6 yours. AT 00, 06, 12, 18 UTC.
-    # to calculate the run, convert the current date back to UTC
+    days = int(conf.get('GRIB', 'days'))
+    source_file_count = days * 12  # Grib files are hourly based (until 12 days)
 
+    # Validate configuration parameters
     if lon_min < -180 or lon_min > 180:
         raise ValueError('longitude should be between -180 and 180')
 
@@ -171,28 +68,167 @@ def download_grib():
     if days < 1 or days > 12:
         raise ValueError('days should be between 0 and 12')
 
-    download_parts()
-    concat_parts()
+    folder_date = utc_now
+    if utc_now.hour > 18:
+        hour = 18
+    elif utc_now.hour > 12:
+        hour = 12
+    elif utc_now.hour > 6:
+        hour = 6
+    else:
+        hour = 0
+
+    # Try to find the first available data set
+    data_set_attempts = 0
+    while True:
+
+        # build file names and paths
+        server_dir = '%(y)04d%(m)02d%(d)02d%(h)02d' % {
+            "y": folder_date.year,
+            "m": folder_date.month,
+            "d": folder_date.day,
+            "h": hour
+        }
+
+        # check whether this server set exists
+        url_root = 'http://www.nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl'
+        folder_url = url_root + '?dir=%2Fgfs.' + server_dir
+        try:
+            response = urllib2.urlopen(folder_url)
+            response.read()  # if this does not raise an exception, this data set is accessible
+            break
+
+        except urllib2.HTTPError, e:
+
+            if e.code == 500:
+                # server throws code '500' in case the folder is not accessible.
+                # this usually means the set is not available yet.
+                print 'Data set \'' + server_dir + '\' is not (yet) available. Attempting to the preceding set.'
+                data_set_attempts += 1
+                hour -= 6
+
+                if hour == -6:
+                    # moved back a day. Adjust date and hours
+                    hour = 18
+                    folder_date = folder_date - timedelta(days=1)
+
+            else:
+                pass
+
+            if data_set_attempts >= 2:
+                raise IOError('Unable to find a suitable server set')
+
+    destination_file_name = '%(y)04d%(mon)02d%(d)02d_%(h)02d%(min)02d%(s)02d.grb' % {
+        'y': now.year,
+        'mon': now.month,
+        'd': now.day,
+        'h': now.hour,
+        'min': now.minute,
+        's': now.second
+    }
+
+    # Download the files to our destination file
+    print 'Downloading set \'' + server_dir + '\' to \'' + destination_file_name + '\''
+    with open(os.path.join(path, destination_file_name), "wb") as destination_file:
+        for num in range(0, source_file_count):
+
+            source_file = 'gfs.t%(h)02dz.pgrb2.0p25.f%(n)03d' % \
+                          {
+                              "h": hour,
+                              "n": num
+                          }
+
+            # build the request url
+            url = url_root \
+                  + '?file=' + source_file \
+                  + '&lev_10_m_above_ground=on' \
+                  + '&lev_2_m_above_ground=on' \
+                  + '&lev_mean_sea_level=on' \
+                  + '&lev_entire_atmosphere=on' \
+                  + '&lev_surface=on'
+
+            if download_gust == '1':
+                url += '&var_GUST=on'
+
+            if download_precipitation == '1':
+                url += '&var_APCP=on'
+
+            if download_humidity == '1':
+                url += '&var_RH=on'
+
+            if download_tmp == '1':
+                url += '&var_TMP=on'
+
+            if download_cape == '1':
+                url += '&var_CAPE=on'
+
+            if download_pressure == '1':
+                url += '&var_PRMSL=on'
+
+            if download_min_max_temp == '1':
+                url += '&var_TMIN=on&var_TMAX=on'
+
+            if download_wind == '1':
+                url += '&var_VGRD=on&var_UGRD=on'
+
+            if download_cloud_cover == '1':
+                url += '&var_TCDC=on'
+
+            url += '&subregion=' + \
+                   '&leftlon=' + str(lon_min) + \
+                   '&rightlon=' + str(lon_max) + \
+                   '&toplat=' + str(lat_min) + \
+                   '&bottomlat=' + str(lat_max)
+
+            url += '&dir=%2Fgfs.' + server_dir
+
+            print 'Downloading %(i)d / %(t)d %(f)s' % {
+                'i': num,
+                't': source_file_count,
+                'f': source_file
+            }
+
+            # open the response and write it to disk
+            try:
+                response = urllib2.urlopen(url)
+                destination_file.write(response.read())
+            except urllib2.HTTPError, e:
+                # 404 means the file does not exits.
+                # usually this indicates the
+                if e.code != 404:
+                    pass
 
 
 def clean_folder():
     now = time.time()
+    clean_days = int(conf.get('GRIB', 'clean_days'))
 
-    print 'Cleaning folder \'' + path + '\''
+    # validate input parameters
+    if clean_days < 1:
+        raise ValueError('clean_days should at least be 1')
 
+    print 'Cleaning folder \'' + path + '\'...'
+
+    # loop trough files in the grib directory
     for filename in os.listdir(path):
         full_filename = os.path.join(path, filename)
         if os.path.isfile(full_filename):
-            if os.stat(full_filename).st_mtime < now - 7 * (60 * 60 * 24):
+            if os.stat(full_filename).st_mtime < now - clean_days * (60 * 60 * 24):
+                # file is expired. Delete the file
                 print "EXPIRED: %(f)s" % {
                     'f': filename
                 }
-                # TODO: Error handling, file could be in use
-                os.remove(full_filename)
+                try:
+                    os.remove(full_filename)
+                except OSError as e:
+                    print 'Could not remove file: ' + str(e)
             else:
-                print "PASSED:  %(f)s" % {
+                # file is not expired. Skip the file
+                print "SKIPPED:  %(f)s" % {
                     'f': filename
                 }
+
+    print "Clean completed."
 
 
 # download settings
@@ -205,9 +241,9 @@ path = conf.get('GRIB', 'path')
 # calculate the sleep interval
 # TODO: use a time diff, or cron job for this
 sleep_interval = 0
-if run_interval == hourly:
+if run_interval == 0:
     sleep_interval = 60 * 60
-elif run_interval == daily:
+elif run_interval == 1:
     sleep_interval = 60 * 60 * 24
 else:
     sleep_interval = 60 * 60  # fallback to hourly

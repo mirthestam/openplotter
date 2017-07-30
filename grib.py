@@ -24,6 +24,15 @@ from classes.paths import Paths
 from classes.conf import Conf
 
 
+def run_scheduled():
+    try:
+        run()
+    except Exception:
+        print "Scheduled run failed"
+    finally:
+        print 'Next download is scheduled at ' + str(schedule.next_run())
+
+
 def run():
     if clean == '1':
         clean_folder()
@@ -52,7 +61,7 @@ def download_grib():
     lat_max = float(conf.get('GRIB', 'lat_max'))
 
     days = int(conf.get('GRIB', 'days'))
-    source_file_count = days * 12  # Grib files are hourly based (until 12 days)
+    source_file_count = days * 24  # Grib files are hourly based (until 12 days)
 
     # Validate configuration parameters
     if lon_min < -180 or lon_min > 180:
@@ -105,7 +114,8 @@ def download_grib():
             if e.code == 500:
                 # server throws code '500' in case the folder is not accessible.
                 # this usually means the set is not available yet.
-                print 'Data set \'' + server_dir + '\' is not (yet) available. Attempting to the preceding set.'
+                print 'Data set \'' + server_dir + '\' is not (yet) available. ' \
+                                                   'Attempting to download the preceding set.'
                 data_set_attempts += 1
                 hour -= 6
 
@@ -203,9 +213,11 @@ def download_grib():
                     pass
 
     # remove the partial ext
-    os.rename(os.path.join(path, destination_file_name + destination_file_name_partial_ext), os.path.join(path, destination_file_name + destination_file_name_ext))
+    os.rename(os.path.join(path, destination_file_name + destination_file_name_partial_ext),
+              os.path.join(path, destination_file_name + destination_file_name_ext))
 
     print 'Download completed.'
+
 
 def clean_folder():
     now = time.time()
@@ -266,13 +278,18 @@ if not path:
 if not os.path.exists(path):
     raise EnvironmentError("Path does not exist")
 
-# Initially run
-if run_at_startup == '1':
-    run()
 
 # Schedule the task
-schedule.every(run_interval).minutes.do(run)
+schedule.every(run_interval).minutes.do(run_scheduled)
 
+# Initially run
+if run_at_startup == '1':
+    schedule.run_all(0)
+else:
+    print 'First download is scheduled at ' + str(schedule.next_run())
+
+# Await and run scheduled tasks
 while True:
+
     schedule.run_pending()
     time.sleep(60)  # sleeping for a minute to save resources

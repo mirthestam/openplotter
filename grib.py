@@ -20,6 +20,7 @@ import urllib2
 import schedule  # This needs to be installed i.e. 'pip install schedule'
 from datetime import datetime, timedelta
 
+from classes.paths import Paths
 from classes.conf import Conf
 
 
@@ -119,7 +120,9 @@ def download_grib():
             if data_set_attempts >= 2:
                 raise IOError('Unable to find a suitable server set')
 
-    destination_file_name = '%(y)04d%(mon)02d%(d)02d_%(h)02d%(min)02d%(s)02d.grb' % {
+    destination_file_name_partial_ext = '.grb.partial'
+    destination_file_name_ext = '.grb'
+    destination_file_name = '%(y)04d%(mon)02d%(d)02d_%(h)02d%(min)02d%(s)02d' % {
         'y': now.year,
         'mon': now.month,
         'd': now.day,
@@ -129,8 +132,8 @@ def download_grib():
     }
 
     # Download the files to our destination file
-    print 'Downloading set \'' + server_dir + '\' to \'' + destination_file_name + '\''
-    with open(os.path.join(path, destination_file_name), "wb") as destination_file:
+    print 'Downloading set \'' + server_dir + '\' to \'' + destination_file_name + destination_file_name_ext + '\''
+    with open(os.path.join(path, destination_file_name + destination_file_name_partial_ext), "wb") as destination_file:
         for num in range(0, source_file_count):
 
             source_file = 'gfs.t%(h)02dz.pgrb2.0p25.f%(n)03d' % \
@@ -184,7 +187,7 @@ def download_grib():
             url += '&dir=%2Fgfs.' + server_dir
 
             print 'Downloading %(i)d / %(t)d %(f)s' % {
-                'i': num,
+                'i': num + 1,
                 't': source_file_count,
                 'f': source_file
             }
@@ -199,6 +202,10 @@ def download_grib():
                 if e.code != 404:
                     pass
 
+    # remove the partial ext
+    os.rename(os.path.join(path, destination_file_name + destination_file_name_partial_ext), os.path.join(path, destination_file_name + destination_file_name_ext))
+
+    print 'Download completed.'
 
 def clean_folder():
     now = time.time()
@@ -214,7 +221,17 @@ def clean_folder():
     for filename in os.listdir(path):
         full_filename = os.path.join(path, filename)
         if os.path.isfile(full_filename):
-            if os.stat(full_filename).st_mtime < now - clean_days * (60 * 60 * 24):
+            if filename.endswith('.partial'):
+                # Partial file found. Probably from an aborted download
+                print "PARTIAL: %(f)s" % {
+                    'f': filename
+                }
+                try:
+                    os.remove(full_filename)
+                except OSError as e:
+                    print 'Could not remove file: ' + str(e)
+
+            elif os.stat(full_filename).st_mtime < now - clean_days * (60 * 60 * 24):
                 # file is expired. Delete the file
                 print "EXPIRED: %(f)s" % {
                     'f': filename
@@ -233,7 +250,8 @@ def clean_folder():
 
 
 # download settings
-conf = Conf()
+paths = Paths()
+conf = Conf(paths)
 run_interval = int(conf.get('GRIB', 'run_interval'))
 run_at_startup = conf.get('GRIB', 'run_at_startup')
 clean = conf.get('GRIB', 'clean')

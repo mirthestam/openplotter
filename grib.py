@@ -253,7 +253,7 @@ if run_at_startup == '1':
     run()
 
 # Schedule the task
-schedule.every(run_interval).minute.do(run)
+schedule.every(run_interval).minutes.do(run)
 
 while True:
     schedule.run_pending()

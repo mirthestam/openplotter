@@ -76,20 +76,23 @@ def download_grib():
     if lat_max < 0 or lat_max > 90:
         raise ValueError('latitude should be between 0 and 90')
 
-    if days < 1 or days > 12:
-        raise ValueError('days should be between 0 and 12')
+    if days < 1 or days > 32:
+        raise ValueError('days should be between 1 and 32')
 
     folder_date = utc_now
     if utc_now.hour > 18:
-        hour = 18
-    elif utc_now.hour > 12:
-        hour = 12
-    elif utc_now.hour > 6:
-        hour = 6
-    else:
-        hour = 0
+        folder_date = folder_date.replace(hour=18)
 
-    # Try to find the first available data set
+    elif utc_now.hour > 12:
+        folder_date = folder_date.replace(hour=12)
+
+    elif utc_now.hour > 6:
+        folder_date = folder_date.replace(hour=6)
+
+    else:
+        folder_date = folder_date.replace(hour=0)
+
+        # Try to find the first available data set
     data_set_attempts = 0
     while True:
 
@@ -98,7 +101,7 @@ def download_grib():
             "y": folder_date.year,
             "m": folder_date.month,
             "d": folder_date.day,
-            "h": hour
+            "h": folder_date.hour
         }
 
         # check whether this server set exists
@@ -117,12 +120,9 @@ def download_grib():
                 print 'Data set \'' + server_dir + '\' is not (yet) available. ' \
                                                    'Attempting to download the preceding set.'
                 data_set_attempts += 1
-                hour -= 6
 
-                if hour == -6:
-                    # moved back a day. Adjust date and hours
-                    hour = 18
-                    folder_date = folder_date - timedelta(days=1)
+                # Subtract 6 hours from the date to target the previous set
+                folder_date = folder_date + timedelta(hours = -6)
 
             else:
                 pass
@@ -141,15 +141,41 @@ def download_grib():
         's': now.second
     }
 
+    # Calculate the offset, so we ignore passed hours
+    delta = utc_now - folder_date
+    source_file_offset, remainder = divmod(delta.seconds, 3600)
+
     # Download the files to our destination file
     print 'Downloading set \'' + server_dir + '\' to \'' + destination_file_name + destination_file_name_ext + '\''
     with open(os.path.join(path, destination_file_name + destination_file_name_partial_ext), "wb") as destination_file:
         for num in range(0, source_file_count):
 
+            # Determine whether this 'hour' is available
+            # we calculate this to prevent unnecessary server requests
+            index = num + source_file_offset
+
+            if index >= 240:
+                interval = 12
+
+            elif index >= 120:
+                interval = 3
+
+            else:
+                interval = 0
+
+            if interval > 0 and index % interval > 0:
+                # This hour is unavailable at the server.
+                print 'Skipping    %(i)d / %(t)d  Data is unavailable at server' % {
+                    'i': num + 1,
+                    't': source_file_count
+                }
+                continue
+
+            # Passed the interval test.
             source_file = 'gfs.t%(h)02dz.pgrb2.0p25.f%(n)03d' % \
                           {
-                              "h": hour,
-                              "n": num
+                              "h": folder_date.hour,
+                              "n": index
                           }
 
             # build the request url

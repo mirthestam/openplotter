@@ -15,20 +15,22 @@
 # You should have received a copy of the GNU General Public License
 # along with Openplotter. If not, see <http://www.gnu.org/licenses/>.
 
-import wx, subprocess
-from classes.paths import Paths
-from classes.op_conf import Conf
-from classes.language import Language
+import wx, sys, os, subprocess
+
+op_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+sys.path.append(op_folder+'/classes')
+from conf import Conf
+from language import Language
 
 class MyFrame(wx.Frame):
 		
 		def __init__(self):
 
-			self.paths=Paths()
+			self.conf = Conf()
+			self.home = self.conf.home
+			self.currentpath = self.home+self.conf.get('GENERAL', 'op_folder')+'/openplotter'
 
-			self.conf=Conf()
-
-			Language(self.conf.get('GENERAL','lang'))
+			Language(self.conf)
 
 			title = _('Calculate')
 
@@ -36,7 +38,7 @@ class MyFrame(wx.Frame):
 			
 			self.SetFont(wx.Font(10, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL))
 			
-			self.icon = wx.Icon(self.paths.op_path+'/openplotter.ico', wx.BITMAP_TYPE_ICO)
+			self.icon = wx.Icon(self.currentpath+'/openplotter.ico', wx.BITMAP_TYPE_ICO)
 			self.SetIcon(self.icon)
 
 			rate_list = ['0.1', '0.25', '0.5', '0.75', '1', '1.5', '2', '5', '30', '60', '300']
@@ -167,6 +169,8 @@ class MyFrame(wx.Frame):
 
 			if self.conf.get('CALCULATE', 'hdt')=='1': self.heading_t.SetValue(True)
 			if self.conf.get('CALCULATE', 'hdt_dev')=='1': self.add_deviation.SetValue(True)
+			if self.conf.get('COMPASS', 'magnetic_h')=='1': self.add_deviation.Disable()
+
 			self.th_rate.SetValue(self.conf.get('CALCULATE', 'hdt_rate'))
 			self.th_accu.SetValue(self.conf.get('CALCULATE', 'hdt_accuracy'))
 
@@ -190,6 +194,7 @@ class MyFrame(wx.Frame):
 					return
 			else: self.conf.set('CALCULATE', 'mag_var', '0')
 
+			if self.conf.get('COMPASS', 'magnetic_h')=='1': self.add_deviation.SetValue(False)
 			if self.heading_t.GetValue() or self.add_deviation.GetValue():
 				if self.th_rate.GetValue() and self.th_accu.GetValue():
 					if self.heading_t.GetValue(): self.conf.set('CALCULATE', 'hdt', '1')
@@ -231,7 +236,7 @@ class MyFrame(wx.Frame):
 				self.conf.set('CALCULATE', 'tw_sog', '0')
 
 			subprocess.call(['pkill', '-f', 'SK-base_d.py'])
-			subprocess.Popen(['python', self.paths.op_path + '/SK-base_d.py'])
+			subprocess.Popen(['python', self.currentpath + '/SK-base_d.py'])
 			self.Close()
 
 		def on_cancel(self, e):

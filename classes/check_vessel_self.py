@@ -19,19 +19,18 @@ import requests
 import subprocess
 import time
 import json
-from paths import Paths
-
 
 class checkVesselSelf:
-	def __init__(self):
-		paths = Paths()
-		home = paths.home
-		currentpath = paths.currentpath
+	def __init__(self, conf):
+
+		home = conf.home
+		currentpath = home+conf.get('GENERAL', 'op_folder')+'/openplotter'
+
 		if not self.util_process_exist('signalk-server'):
 			print 'Signal K starting'
 			subprocess.call(['pkill', '-f', 'SK-base_d.py'])
 			time.sleep(1)
-			subprocess.Popen(['bin/signalk-server','-s','../openplotter/OP-signalk/openplotter-settings.json'],cwd=home + '/.config/signalk-server-node')							 
+			subprocess.Popen(['bin/signalk-server','-s','../../.openplotter/openplotter-settings.json'],cwd=home + '/.config/signalk-server-node')							 
 			starttime = time.time()
 			error = True
 			while starttime + 10 > time.time() and error:
@@ -44,11 +43,11 @@ class checkVesselSelf:
 			subprocess.Popen(['python', currentpath + '/SK-base_d.py'])
 			time.sleep(1)									
 		try:
-			with open(home + '/.config/openplotter/OP-signalk/openplotter-settings.json') as data_file:
+			with open(home+'/.openplotter/openplotter-settings.json') as data_file:
 				data = json.load(data_file)
 		except:
 			data = []
-			print "Error: Can't open file " + home + "/.config/openplotter/OP-signalk/openplotter-settings.json"
+			print "Error: Can't open file "+home+"/.openplotter/openplotter-settings.json"
 
 		raw_uuid = data['vessel']['uuid']
 		self.mmsi = raw_uuid.split(':')[-1]

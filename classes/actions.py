@@ -20,7 +20,6 @@ import paho.mqtt.publish as publish
 
 from classes.gmailbot import GmailBot
 from classes.twitterbot import TwitterBot
-from check_vessel_self import checkVesselSelf
 
 if platform.machine()[0:3] == 'arm':
 	import RPi.GPIO as GPIO
@@ -58,8 +57,8 @@ class Actions:
 		self.options.append([_('stop all sounds'), 0, 0, 'ACT16'])
 		self.options.append([_('show message'), _('Enter the message in field "data".'), 1, 'ACT17'])
 		self.options.append([_('close all messages'), 0, 0, 'ACT18'])
-		#self.options.append([_('start all actions'), 0, 0, 'ACT19'])
-		#self.options.append([_('stop all actions'), _('This action will stop all the triggers except the trigger which has an action "start all actions" defined.'),0, 'ACT20'])
+		self.options.append([_('start all actions'), 0, 0, 'ACT19'])
+		self.options.append([_('stop all actions'), _('This action will stop all the triggers except the trigger which has an action "start all actions" defined.'),0, 'ACT20'])
 
 		#init GPIO
 		try:

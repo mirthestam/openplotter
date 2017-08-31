@@ -1,20 +1,46 @@
 #!/bin/bash
-cd ~/.config
+op_folder=$(crudini --get ~/.openplotter/openplotter.conf GENERAL op_folder)
+if [ -z $op_folder ]; then
+	op_folder="/.config"
+fi
+
+cd $HOME$op_folder
 
 echo
 echo "APPLYING SETTINGS..."
 echo
-rm -rf openplotter_tmp/.git/
-sudo chmod 755 openplotter_tmp/openplotter
-sudo chmod 755 openplotter_tmp/keyword
-sudo chmod 755 openplotter_tmp/startup
-cp -f $DIRDATE/openplotter.conf openplotter_tmp/
-crudini --set openplotter_tmp/openplotter.conf GENERAL version $2
-crudini --set openplotter_tmp/openplotter.conf GENERAL state $3
-python openplotter_tmp/update/update_signalk_settings.py $DIRDATE
-cp -f $DIRDATE/imu/RTIMULib.ini openplotter_tmp/imu/settings/
-cp -f $DIRDATE/imu/settings/RTIMULib.ini openplotter_tmp/imu/settings/
-echo "Errors copying RTIMULib.ini are expected, do not worry."
-rm -rf openplotter_tmp/imu/RTEllipsoidFit/
-cp -ar $DIRDATE/imu/RTEllipsoidFit/ openplotter_tmp/imu
-cd ~/.config
+
+chmod 755 openplotter_tmp/openplotter
+chmod 755 openplotter_tmp/keyword
+chmod 755 openplotter_tmp/startup
+
+if [ ! -d ~/.openplotter ]; then
+	mkdir ~/.openplotter
+fi
+
+if [ ! -d ~/.openplotter/tools ]; then
+	mkdir ~/.openplotter/tools
+fi
+
+cp -f openplotter_tmp/tools/demo_tool.py ~/.openplotter/tools/
+
+if [ ! -f ~/.openplotter/openplotter.conf ]; then
+	cp -f $DIRDATE/openplotter.conf ~/.openplotter/
+fi
+newversion=$(crudini --get openplotter_tmp/openplotter.conf GENERAL version)
+newstate=$(crudini --get openplotter_tmp/openplotter.conf GENERAL state)
+crudini --set ~/.openplotter/openplotter.conf GENERAL version $newversion
+crudini --set ~/.openplotter/openplotter.conf GENERAL state $newstate
+
+if [ ! -f ~/.openplotter/openplotter-settings.json ]; then
+	cp -f $DIRDATE/OP-signalk/openplotter-settings.json ~/.openplotter/
+fi
+if [ ! -f ~/.openplotter/private_unit.json ]; then
+	cp -f $DIRDATE/classes/private_unit.json ~/.openplotter/
+fi
+if [ ! -f ~/.openplotter/SK-simulator.conf ]; then
+	cp -f $DIRDATE/tools/SK-simulator.conf ~/.openplotter/
+fi
+if [ ! -f ~/.openplotter/openplotter_analog.conf ]; then
+	cp -f $DIRDATE/tools/openplotter_analog.conf ~/.openplotter/
+fi

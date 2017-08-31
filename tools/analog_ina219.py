@@ -15,21 +15,24 @@
 # You should have received a copy of the GNU General Public License
 # along with Openplotter. If not, see <http://www.gnu.org/licenses/>.
 
-import socket, time, math, csv, datetime, subprocess, sys
-from classes.paths import Paths
-from classes.ads1115 import Ads1115
-from classes.conf_analog import Conf_analog
+import socket, time, math, csv, datetime, subprocess, sys, os
 
+op_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+sys.path.append(op_folder+'/classes')
+from ads1115 import Ads1115
+from conf_analog import Conf_analog
 from ina219 import INA219
 from ina219 import DeviceRangeError
 
 SHUNT_OHMS = 0.1
 
+conf_analog=Conf_analog()
+home = conf_analog.home
 
 if len(sys.argv)>1:
 	if sys.argv[1]=='settings':
-		print toolspath+'openplotter_analog.conf'
-		subprocess.Popen(['leafpad',toolspath+'/openplotter_analog.conf'])
+		print home+'/.openplotter/openplotter_analog.conf'
+		subprocess.Popen(['leafpad',home+'/.openplotter/openplotter_analog.conf'])
 	exit
 else:
 
@@ -39,7 +42,16 @@ else:
 	rate_analog = 1
 
 	tick_analog=time.time()
+	ina = INA219(SHUNT_OHMS,1.0,0x41)
+	ina.configure()
 
+	try:
+		inaV = ina.voltage()
+		inaA = ina.current()/1000
+		inaW = inaV*inaA
+	except DeviceRangeError as e:
+		print e
+	
 	while True:
 		tick2=time.time()
 		time.sleep(poll_interval*1.0/1000.0)
@@ -51,13 +63,9 @@ else:
 			list_signalk_path1=[]
 			list_signalk1=[]
 
-
-			ina = INA219(SHUNT_OHMS,1.0,0x41)
-			ina.configure()
-
 			try:
-				inaV = ina.voltage()
-				inaA = ina.current()/1000
+				inaV = inaV*0.8 +ina.voltage()*0.2
+				inaA = inaA*0.8 +ina.current()/1000*0.2
 				inaW = inaV*inaA
 			except DeviceRangeError as e:
 				print e

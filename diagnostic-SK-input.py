@@ -26,8 +26,6 @@ import time
 
 from classes.conf import Conf
 from classes.language import Language
-from classes.paths import Paths
-
 
 class MyFrame(wx.Frame):
 	def __init__(self):
@@ -47,12 +45,11 @@ class MyFrame(wx.Frame):
 		self.list_SK_unit = []
 		self.sortCol = 0
 
-		paths = Paths()
-		self.home = paths.home
-		self.currentpath = paths.currentpath
-		self.conf = Conf(paths)
+		self.conf = Conf()
+		self.home = self.conf.home
+		self.currentpath = self.home+self.conf.get('GENERAL', 'op_folder')+'/openplotter'
 
-		Language(self.conf.get('GENERAL', 'lang'))
+		Language(self.conf)
 
 		wx.Frame.__init__(self, None, title='diagnostic SignalK input', size=(670, 435))
 		self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -151,8 +148,8 @@ class MyFrame(wx.Frame):
 			data = json.load(data_file)
 
 		data_sk_unit_private = []
-		if os.path.isfile(self.home + '/.config/openplotter/classes/private_unit.json'):
-			with open(self.home + '/.config/openplotter/classes/private_unit.json') as data_file:
+		if os.path.isfile(self.home+'/.openplotter/private_unit.json'):
+			with open(self.home+'/.openplotter/private_unit.json') as data_file:
 				data_sk_unit_private = json.load(data_file)
 
 		for i in data:
@@ -182,9 +179,9 @@ class MyFrame(wx.Frame):
 				if skip == 0:
 					st += '.*'
 				else:
-					if i in ['propulsion', 'inventory']:
+					if i in ['propulsion', 'sensors']:
 						skip = 1
-					elif i == 'resources':
+					elif i in ['electrical', 'registrations','tanks']:
 						skip = 2
 					st += '.' + i
 			index += 1
@@ -263,6 +260,9 @@ class MyFrame(wx.Frame):
 					self.SK_Faktor_priv = 86400
 				elif self.SK_unit_priv == 'y':
 					self.SK_Faktor_priv = 31536000
+			elif self.SK_unit == 'ratio':
+				if self.SK_unit_priv == '%':
+					self.SK_Faktor_priv = 0.01
 		else:
 			self.SK_Faktor_priv = 1
 			self.SK_Offset_priv = 0
